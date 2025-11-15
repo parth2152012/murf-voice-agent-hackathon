@@ -1,20 +1,6 @@
-# Python Dependencies for Murf AI Voice Agent
-# Techfest IIT Bombay Hackathon
-
-# Environment variables
 python-dotenv==1.0.0
-
-# HTTP requests for Murf API
 requests==2.31.0
-
-# Audio processing
-PyAudio==0.2.14
-
-# Deepgram ASR SDK
+PyAudio==0.2.13
 deepgram-sdk==3.2.0
-
-# OpenAI GPT (optional)
-openai==1.3.0
-
-# Async support
-aiohttp==3.9.1
+openai==1.12.0
+aiohttp==3.9.3

@@ -8,7 +8,7 @@ import os
 import sys
 import asyncio
 import json
-from datetime import datetime
+from datetime import import datetime
 from dotenv import load_dotenv
 import requests
 import pyaudio
@@ -28,10 +28,11 @@ load_dotenv()
 class Config:
     MURF_API_KEY = os.getenv('MURF_API_KEY')
     DEEPGRAM_API_KEY = os.getenv('DEEPGRAM_API_KEY')
-    OPENAI_API_KEY = os.getenv('OPENAI_API_KEY')
+    PERPLEXITY_API_KEY = os.getenv('PERPLEXITY_API_KEY')
     MURF_API_URL = 'https://api.murf.ai/v1/speech/generate'
     VOICE_ID = 'en-US-terrell'  # Murf voice ID
     SAMPLE_RATE = 16000
+
 
 class VoiceAgent:
     def __init__(self):
@@ -39,7 +40,7 @@ class VoiceAgent:
         self.conversation_history = []
         self.is_running = False
         self.deepgram_client = None
-        self.openai_client = None
+        self.perplexity_client = None
         
         # Validate API keys
         self._validate_config()
@@ -47,8 +48,11 @@ class VoiceAgent:
         # Initialize clients
         if self.config.DEEPGRAM_API_KEY:
             self.deepgram_client = DeepgramClient(self.config.DEEPGRAM_API_KEY)
-        if self.config.OPENAI_API_KEY:
-            self.openai_client = OpenAI(api_key=self.config.OPENAI_API_KEY)
+        if self.config.PERPLEXITY_API_KEY:
+            self.perplexity_client = OpenAI(
+                api_key=self.config.PERPLEXITY_API_KEY,
+                base_url="https://api.perplexity.ai"
+            )
     
     def _validate_config(self):
         """Validate required API keys"""
@@ -75,7 +79,6 @@ class VoiceAgent:
             'text': text,
             'format': 'WAV',
             'sampleRate': self.config.SAMPLE_RATE,
-            'speed': 1.0,
         }
         
         try:
@@ -85,29 +88,28 @@ class VoiceAgent:
                 json=payload,
                 timeout=30
             )
+            response.raise_for_status()
             
-            if response.status_code == 200:
-                # Save and play audio
-                audio_file = f"output_{datetime.now().strftime('%Y%m%d_%H%M%S')}.wav"
-                with open(audio_file, 'wb') as f:
-                    f.write(response.content)
-                
-                # Play audio
-                self._play_audio(audio_file)
-                print(f"✓ Audio saved and played: {audio_file}")
-                return audio_file
-            else:
-                print(f"❌ Murf API Error: {response.status_code} - {response.text}")
-                return None
-        
-        except Exception as e:
-            print(f"❌ Error generating speech: {str(e)}")
-            return None
+            # Save audio file
+            audio_file = f'output_{datetime.now().strftime("%Y%m%d_%H%M%S")}.wav'
+            with open(audio_file, 'wb') as f:
+                f.write(response.content)
+            
+            # Play audio
+            self._play_audio(audio_file)
+            
+            # Clean up
+            os.remove(audio_file)
+            
+        except requests.exceptions.RequestException as e:
+            print(f"❌ Error generating speech: {e}")
+            if hasattr(e, 'response') and e.response:
+                print(f"Response: {e.response.text}")
     
-    def _play_audio(self, filename):
-        """Play audio file using pyaudio"""
+    def _play_audio(self, audio_file):
+        """Play audio file using PyAudio"""
         try:
-            wf = wave.open(filename, 'rb')
+            wf = wave.open(audio_file, 'rb')
             p = pyaudio.PyAudio()
             
             stream = p.open(
@@ -126,151 +128,188 @@ class VoiceAgent:
             stream.close()
             p.terminate()
             wf.close()
-        
-        except Exception as e:
-            print(f"❌ Error playing audio: {str(e)}")
-    
-    def get_ai_response(self, user_input):
-        """
-        Generate AI response using OpenAI or fallback logic
-        """
-        # Add user message to history
-        self.conversation_history.append({
-            'role': 'user',
-            'content': user_input
-        })
-        
-        if self.openai_client:
-            try:
-                # Use OpenAI for intelligent responses
-                response = self.openai_client.chat.completions.create(
-                    model='gpt-3.5-turbo',
-                    messages=[
-                        {'role': 'system', 'content': 'You are a helpful voice assistant. Keep responses concise and conversational.'},
-                        *self.conversation_history
-                    ],
-                    max_tokens=150,
-                    temperature=0.7
-                )
-                
-                ai_response = response.choices[0].message.content
-                self.conversation_history.append({
-                    'role': 'assistant',
-                    'content': ai_response
-                })
-                
-                return ai_response
             
-            except Exception as e:
-                print(f"❌ OpenAI Error: {str(e)}")
-        
-        # Fallback responses if OpenAI not available
-        return self._get_fallback_response(user_input)
+        except Exception as e:
+            print(f"❌ Error playing audio: {e}")
     
-    def _get_fallback_response(self, user_input):
-        """Simple fallback responses when LLM is not available"""
-        user_input_lower = user_input.lower()
-        
-        if 'hello' in user_input_lower or 'hi' in user_input_lower:
-            return "Hello! I'm your AI voice assistant powered by Murf Falcon. How can I help you today?"
-        elif 'how are you' in user_input_lower:
-            return "I'm doing great! Thanks for asking. I'm here to assist you with anything you need."
-        elif 'bye' in user_input_lower or 'goodbye' in user_input_lower:
-            return "Goodbye! It was nice talking to you. Have a wonderful day!"
-        elif 'time' in user_input_lower:
-            current_time = datetime.now().strftime('%I:%M %p')
-            return f"The current time is {current_time}."
-        elif 'date' in user_input_lower:
-            current_date = datetime.now().strftime('%B %d, %Y')
-            return f"Today is {current_date}."
-        else:
-            return f"You said: {user_input}. I'm a voice assistant built with Murf Falcon TTS for the Techfest IIT Bombay hackathon. How can I help?"
-    
-    async def listen_and_respond(self):
+    async def listen_with_deepgram(self):
         """
-        Main conversation loop using Deepgram for real-time transcription
+        Listen to microphone using Deepgram ASR
+        Returns transcribed text
         """
-        print("\n🎤 Voice Agent Started!")
-        print("Speak into your microphone... (Say 'goodbye' to exit)\n")
+        print("\n🎤 Listening... (say 'goodbye' or 'bye' to exit)")
         
         try:
-            dg_connection = self.deepgram_client.listen.asynclive.v('1')
+            dg_connection = self.deepgram_client.listen.live.v("1")
             
-            async def on_message(self, result, **kwargs):
+            transcription_complete = asyncio.Event()
+            transcribed_text = []
+            
+            def on_message(self, result, **kwargs):
                 sentence = result.channel.alternatives[0].transcript
-                
                 if len(sentence) == 0:
                     return
                 
                 if result.is_final:
-                    print(f"\n👤 You: {sentence}")
-                    
-                    # Check for exit command
-                    if 'goodbye' in sentence.lower() or 'bye' in sentence.lower():
-                        print("\n👋 Ending conversation...")
-                        self.is_running = False
-                        return
-                    
-                    # Get AI response
-                    response = self.get_ai_response(sentence)
-                    print(f"🤖 Assistant: {response}")
-                    
-                    # Speak response using Murf
-                    self.speak_with_murf(response)
+                    transcribed_text.append(sentence)
+                    print(f"You: {sentence}")
+                    transcription_complete.set()
+            
+            def on_error(self, error, **kwargs):
+                print(f"❌ Deepgram Error: {error}")
+                transcription_complete.set()
             
             dg_connection.on(LiveTranscriptionEvents.Transcript, on_message)
+            dg_connection.on(LiveTranscriptionEvents.Error, on_error)
             
             options = LiveOptions(
-                model='nova-2',
-                language='en-US',
+                model="nova-2",
+                language="en-US",
                 smart_format=True,
-                encoding='linear16',
-                channels=1,
-                sample_rate=self.config.SAMPLE_RATE,
+                interim_results=False,
+                punctuate=True,
             )
             
             await dg_connection.start(options)
             
-            # Use microphone for input
             microphone = Microphone(dg_connection.send)
             microphone.start()
             
-            self.is_running = True
+            await transcription_complete.wait()
             
-            # Keep running until stopped
-            while self.is_running:
-                await asyncio.sleep(0.1)
-            
-            # Cleanup
             microphone.finish()
             await dg_connection.finish()
-        
+            
+            return ' '.join(transcribed_text).strip()
+            
         except Exception as e:
-            print(f"❌ Error in conversation loop: {str(e)}")
+            print(f"❌ Error during speech recognition: {e}")
+            return ""
     
-    def start(self):
-        """Start the voice agent"""
+    def generate_response(self, user_input):
+        """
+        Generate intelligent response using Perplexity AI
+        Falls back to simple responses if API not available
+        """
+        if self.perplexity_client:
+            try:
+                # Add to conversation history
+                self.conversation_history.append({
+                    "role": "user",
+                    "content": user_input
+                })
+                
+                # Generate response with Perplexity
+                response = self.perplexity_client.chat.completions.create(
+                    model="sonar",  # Use "sonar-pro" for better quality
+                    messages=[
+                        {
+                            "role": "system",
+                            "content": "You are a helpful, friendly AI voice assistant. Keep responses concise and conversational."
+                        },
+                        *self.conversation_history
+                    ],
+                    temperature=0.7,
+                    max_tokens=150,
+                )
+                
+                ai_response = response.choices[0].message.content
+                
+                # Add AI response to history
+                self.conversation_history.append({
+                    "role": "assistant",
+                    "content": ai_response
+                })
+                
+                # Keep conversation history manageable
+                if len(self.conversation_history) > 10:
+                    self.conversation_history = self.conversation_history[-10:]
+                
+                return ai_response
+                
+            except Exception as e:
+                print(f"⚠️ Perplexity API error: {e}")
+                return self._fallback_response(user_input)
+        else:
+            return self._fallback_response(user_input)
+    
+    def _fallback_response(self, user_input):
+        """Simple fallback responses when Perplexity is not available"""
+        user_input_lower = user_input.lower()
+        
+        responses = {
+            "hello": "Hello! How can I help you today?",
+            "hi": "Hi there! What can I do for you?",
+            "how are you": "I'm doing great! Thanks for asking. How about you?",
+            "what's your name": "I'm your AI voice assistant, powered by Murf Falcon!",
+            "help": "I can chat with you using natural conversation. Just speak naturally!",
+        }
+        
+        for key, response in responses.items():
+            if key in user_input_lower:
+                return response
+        
+        return f"I heard you say: {user_input}. That's interesting! Tell me more."
+    
+    async def run(self):
+        """Main conversation loop"""
+        print("\n" + "="*60)
+        print("🎤 Murf AI Voice Agent - Techfest IIT Bombay Hackathon")
         print("="*60)
-        print("  🎤 MURF AI VOICE AGENT - TECHFEST IIT BOMBAY")
-        print("  Built using Murf Falcon - Fastest TTS API")
-        print("="*60)
+        print("\nWelcome! I'm your AI voice assistant.")
+        print("Powered by:")
+        print("  • Murf Falcon TTS (Text-to-Speech)")
+        print("  • Deepgram Nova-2 ASR (Speech Recognition)")
+        print("  • Perplexity AI (Intelligent Responses)")
+        print("\nSpeak naturally, and I'll respond!")
+        print("Say 'goodbye' or 'bye' to exit.\n")
         
         # Initial greeting
-        greeting = "Hello! I'm your AI voice assistant powered by Murf Falcon. How can I help you today?"
-        self.speak_with_murf(greeting)
+        self.speak_with_murf("Hello! I'm your AI voice assistant. How can I help you today?")
         
-        # Start conversation loop
-        asyncio.run(self.listen_and_respond())
+        self.is_running = True
+        
+        while self.is_running:
+            try:
+                # Listen for user input
+                user_input = await self.listen_with_deepgram()
+                
+                if not user_input:
+                    continue
+                
+                # Check for exit commands
+                if any(word in user_input.lower() for word in ['goodbye', 'bye', 'exit', 'quit']):
+                    self.speak_with_murf("Goodbye! It was nice talking to you!")
+                    self.is_running = False
+                    break
+                
+                # Generate response
+                ai_response = self.generate_response(user_input)
+                
+                # Speak response
+                self.speak_with_murf(ai_response)
+                
+            except KeyboardInterrupt:
+                print("\n\n⚠️ Interrupted by user")
+                self.speak_with_murf("Goodbye!")
+                self.is_running = False
+                break
+            except Exception as e:
+                print(f"\n❌ Error in conversation loop: {e}")
+                continue
+        
+        print("\n👋 Voice agent stopped. Thank you!")
+
 
 def main():
+    """Entry point"""
     try:
         agent = VoiceAgent()
-        agent.start()
-    except KeyboardInterrupt:
-        print("\n\n👋 Voice agent stopped by user")
+        asyncio.run(agent.run())
     except Exception as e:
-        print(f"\n❌ Fatal error: {str(e)}")
+        print(f"\n❌ Fatal error: {e}")
         sys.exit(1)
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     main()

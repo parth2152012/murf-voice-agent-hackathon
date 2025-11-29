@@ -1,6 +1,8 @@
 {
     "cSpell.words": [
+        "afplay",
         "aiohttp",
+        "aplay",
         "asyncio",
         "Bavale",
         "deepgram",
@@ -14,6 +16,7 @@
         "Parth",
         "portaudio",
         "pyaudio",
+        "socketio",
         "Techfest"
     ]
 }

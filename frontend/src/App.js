@@ -42,6 +42,30 @@ function App() {
         setInputMessage(transcript);
         setIsRecording(false);
         console.log('Voice recognition result:', transcript);
+
+        // Auto-send the message after a short delay
+        setTimeout(() => {
+          if (transcript.trim()) {
+            setIsTyping(true);
+
+            // Add user message immediately
+            const userMessage = {
+              id: Date.now(),
+              user: transcript.trim(),
+              timestamp: new Date().toISOString()
+            };
+            setMessages(prev => [...prev, userMessage]);
+
+            // Send via WebSocket
+            socket.emit('send_message', {
+              message: transcript.trim(),
+              session_id: sessionId
+            });
+
+            // Clear input after sending
+            setInputMessage('');
+          }
+        }, 500); // Small delay to show the transcript briefly
       };
 
       recognitionRef.current.onerror = (event) => {
@@ -186,19 +210,19 @@ function App() {
               <div className="welcome-message">
                 <div className="welcome-content">
                   <h2>Welcome to Murf AI Voice Agent! 🎉</h2>
-                  <p>Type a message below to start chatting. Your responses will be spoken aloud using Murf Falcon TTS.</p>
+                  <p>Click the microphone to speak naturally, or type your message. AI responses are spoken aloud using Murf Falcon TTS.</p>
                   <div className="features">
                     <div className="feature">
-                      <span className="emoji">🎙️</span>
-                      <span>Voice Responses</span>
+                      <span className="emoji">🎤</span>
+                      <span>Voice Input</span>
+                    </div>
+                    <div className="feature">
+                      <span className="emoji">🔊</span>
+                      <span>Voice Output</span>
                     </div>
                     <div className="feature">
                       <span className="emoji">🤖</span>
                       <span>AI Conversations</span>
-                    </div>
-                    <div className="feature">
-                      <span className="emoji">⚡</span>
-                      <span>Real-time</span>
                     </div>
                   </div>
                 </div>

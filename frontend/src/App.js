@@ -53,7 +53,8 @@ function App() {
             // Add user message immediately
             const userMessage = {
               id: Date.now(),
-              user: transcript.trim(),
+              type: 'user',
+              content: transcript.trim(),
               timestamp: new Date().toISOString()
             };
             setMessages(prev => [...prev, userMessage]);
@@ -95,14 +96,13 @@ function App() {
     socket.on('message_response', (data) => {
       setIsTyping(false);
       const messageId = Date.now();
-      const newMessage = {
+      const aiMessage = {
         id: messageId,
-        user: data.user_message,
         ai: data.ai_response,
         speech: data.speech,
         timestamp: data.timestamp
       };
-      setMessages(prev => [...prev, newMessage]);
+      setMessages(prev => [...prev, aiMessage]);
 
       // Auto-play audio if available
       if (data.speech && data.speech.success && data.speech.audio_url) {
@@ -229,7 +229,8 @@ function App() {
     // Add user message immediately
     const userMessage = {
       id: Date.now(),
-      user: message,
+      type: 'user',
+      content: message,
       timestamp: new Date().toISOString()
     };
     setMessages(prev => [...prev, userMessage]);
@@ -322,17 +323,17 @@ function App() {
 
             {messages.map((msg) => (
               <div key={msg.id} className="message-group">
-                {/* User Message */}
-                <div className="message user-message">
-                  <div className="message-content">
-                    <div className="message-text">{msg.user}</div>
-                    <div className="message-time">{formatTime(msg.timestamp)}</div>
+                {msg.type === 'user' ? (
+                  /* User Message */
+                  <div className="message user-message">
+                    <div className="message-content">
+                      <div className="message-text">{msg.content}</div>
+                      <div className="message-time">{formatTime(msg.timestamp)}</div>
+                    </div>
+                    <div className="avatar user-avatar">👤</div>
                   </div>
-                  <div className="avatar user-avatar">👤</div>
-                </div>
-
-                {/* AI Response */}
-                {msg.ai && (
+                ) : (
+                  /* AI Response */
                   <div className="message ai-message">
                     <div className="avatar ai-avatar">🎤</div>
                     <div className="message-content">

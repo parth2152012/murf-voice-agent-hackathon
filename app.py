@@ -62,16 +62,19 @@ class VoiceAgentAPI:
 
         try:
             # Create a system prompt for the AI assistant
-            system_prompt = """You are a helpful, friendly AI voice assistant for a hackathon project.
+            system_prompt = """You are Neha, a helpful and friendly AI voice assistant living in India for a hackathon project.
             You should:
-            - Be conversational, creative, and engaging.
+            - Be warm, conversational, and culturally aware of Indian context.
+            - Use Indian English expressions and be familiar with Indian culture, festivals, and daily life.
+            - Be enthusiastic about Indian tech innovation, startups, and cultural diversity.
             - If asked to tell a story or be creative, you should provide a longer, more detailed response.
             - For normal questions, keep responses reasonably concise for a voice interface.
-            - Show a friendly and helpful personality.
+            - Show a friendly, approachable personality with Indian warmth.
             - Remember context from the conversation to avoid repetition.
-            - Be enthusiastic about helping the user.
+            - Be enthusiastic about helping users with their Indian lifestyle and tech needs.
 
-            This is for a voice interface, so responses should sound natural when spoken."""
+            You live in India and understand Indian culture, so you can reference Indian festivals, food, cities, and daily life naturally.
+            This is for a voice interface, so responses should sound natural when spoken in an Indian accent."""
 
             # Build conversation context from history
             conversation_context = ""
@@ -113,22 +116,22 @@ class VoiceAgentAPI:
 
         # Check for specific keywords and patterns
         if any(word in user_input_lower for word in ["hello", "hi", "hey"]):
-            return "Hello! I'm your AI voice assistant powered by Murf Falcon. How can I help you today?"
+            return "Namaste! I'm Neha, your AI voice assistant in India. How can I help you today?"
 
         if "how are you" in user_input_lower:
-            return "I'm doing great! I'm excited to chat with you. What's on your mind?"
+            return "I'm doing great, thank you! It's wonderful to connect with you from India. What's on your mind?"
 
         if any(word in user_input_lower for word in ["name", "who are you"]):
-            return "I'm your friendly AI voice assistant, built for the Techfest hackathon using Murf Falcon TTS!"
+            return "I'm Neha, your friendly AI voice assistant built for the Techfest IIT Bombay hackathon using Murf Falcon TTS!"
 
         if any(word in user_input_lower for word in ["help", "what can you do"]):
-            return "I can have natural conversations with you! I use Google's Gemini AI for smart responses and Murf Falcon for voice synthesis."
+            return "I can have natural conversations with you! I understand Indian culture and use Google's Gemini AI for smart responses with Murf Falcon voice synthesis."
 
         if any(word in user_input_lower for word in ["thank", "thanks"]):
-            return "You're very welcome! I'm here whenever you need to chat."
+            return "You're most welcome! Dhanyavaad! I'm here whenever you need to chat."
 
         if any(word in user_input_lower for word in ["bye", "goodbye", "see you"]):
-            return "Goodbye! It was great talking with you. Come back anytime!"
+            return "Goodbye! It was wonderful talking with you. Dhanyavaad and take care!"
 
         # Check conversation history for context
         if conversation_history and len(conversation_history) > 0:
@@ -166,7 +169,7 @@ class VoiceAgentAPI:
             }
 
             payload = {
-                'voiceId': 'en-US-terrell',
+                'voiceId': 'en-IN-neha',
                 'text': text,
                 'format': 'mp3',
                 'sampleRate': 24000,

@@ -12,10 +12,14 @@ function App() {
   const [isRecording, setIsRecording] = useState(false);
   const [inputMode, setInputMode] = useState('text'); // 'text' or 'voice'
   const [audioEnabled, setAudioEnabled] = useState(false);
+
+  const [speechRecognitionSupported, setSpeechRecognitionSupported] = useState(false);
   const [sessionId] = useState(() => Math.random().toString(36).substring(7));
   const messagesEndRef = useRef(null);
   const recognitionRef = useRef(null);
   const audioContextRef = useRef(null);
+
+
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -27,60 +31,75 @@ function App() {
 
   useEffect(() => {
     // Initialize speech recognition
-    if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
-      const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-      recognitionRef.current = new SpeechRecognition();
-      recognitionRef.current.continuous = false;
-      recognitionRef.current.interimResults = false;
-      recognitionRef.current.lang = 'en-US';
+    const initSpeechRecognition = () => {
+      if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
+        try {
+          const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+          recognitionRef.current = new SpeechRecognition();
+          recognitionRef.current.continuous = false;
+          recognitionRef.current.interimResults = false;
+          recognitionRef.current.lang = 'en-US';
 
-      recognitionRef.current.onstart = () => {
-        setIsRecording(true);
-        console.log('Voice recognition started');
-      };
+          recognitionRef.current.onstart = () => {
+            setIsRecording(true);
+            console.log('Voice recognition started');
+          };
 
-      recognitionRef.current.onresult = (event) => {
-        const transcript = event.results[0][0].transcript;
-        setInputMessage(transcript);
-        setIsRecording(false);
-        console.log('Voice recognition result:', transcript);
+          recognitionRef.current.onresult = (event) => {
+            const transcript = event.results[0][0].transcript;
+            setInputMessage(transcript);
+            setIsRecording(false);
+            console.log('Voice recognition result:', transcript);
 
-        // Auto-send the message after a short delay
-        setTimeout(() => {
-          if (transcript.trim()) {
-            setIsTyping(true);
+            // Auto-send the message after a short delay
+            setTimeout(() => {
+              if (transcript.trim()) {
+                setIsTyping(true);
 
-            // Add user message immediately
-            const userMessage = {
-              id: Date.now(),
-              type: 'user',
-              content: transcript.trim(),
-              timestamp: new Date().toISOString()
-            };
-            setMessages(prev => [...prev, userMessage]);
+                // Add user message immediately
+                const userMessage = {
+                  id: Date.now(),
+                  type: 'user',
+                  content: transcript.trim(),
+                  timestamp: new Date().toISOString()
+                };
+                setMessages(prev => [...prev, userMessage]);
 
-            // Send via WebSocket
-            socket.emit('send_message', {
-              message: transcript.trim(),
-              session_id: sessionId
-            });
+                // Send via WebSocket
+                socket.emit('send_message', {
+                  message: transcript.trim(),
+                  session_id: sessionId
+                });
 
-            // Clear input after sending
-            setInputMessage('');
-          }
-        }, 500); // Small delay to show the transcript briefly
-      };
+                // Clear input after sending
+                setInputMessage('');
+              }
+            }, 500); // Small delay to show the transcript briefly
+          };
 
-      recognitionRef.current.onerror = (event) => {
-        console.error('Speech recognition error:', event.error);
-        setIsRecording(false);
-      };
+          recognitionRef.current.onerror = (event) => {
+            console.error('Speech recognition error:', event.error);
+            setIsRecording(false);
+          };
 
-      recognitionRef.current.onend = () => {
-        setIsRecording(false);
-        console.log('Voice recognition ended');
-      };
-    }
+          recognitionRef.current.onend = () => {
+            setIsRecording(false);
+            console.log('Voice recognition ended');
+          };
+
+          setSpeechRecognitionSupported(true);
+          console.log('Speech recognition initialized successfully');
+        } catch (error) {
+          console.error('Failed to initialize speech recognition:', error);
+          setSpeechRecognitionSupported(false);
+        }
+      } else {
+        console.warn('Speech recognition not supported in this browser');
+        setSpeechRecognitionSupported(false);
+      }
+    };
+
+    initSpeechRecognition();
 
     // Socket connection
     socket.on('connect', () => {
@@ -403,12 +422,14 @@ function App() {
             <div className="input-wrapper">
               <button
                 type="button"
-                className={`mic-button ${isRecording ? 'recording' : ''}`}
+                className={`mic-button ${isRecording ? 'recording' : ''} ${!speechRecognitionSupported ? 'unsupported' : ''}`}
                 onClick={toggleVoiceRecording}
                 disabled={!isConnected || !recognitionRef.current}
-                title="Click to speak"
+                title={!speechRecognitionSupported ? "Voice input not supported in this browser" : isRecording ? "Click to stop recording" : "Click to speak"}
               >
-                <span className="mic-icon">{isRecording ? '🎙️' : '🎤'}</span>
+                <span className="mic-icon">
+                  {!speechRecognitionSupported ? '❌' : isRecording ? '🎙️' : '🎤'}
+                </span>
               </button>
               <input
                 type="text"

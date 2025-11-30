@@ -369,6 +369,30 @@ body {
   50% { opacity: 0.6; }
 }
 
+.play-audio-button {
+  background: rgba(16, 185, 129, 0.1);
+  border: 1px solid #10b981;
+  color: #10b981;
+  padding: 4px 8px;
+  border-radius: 16px;
+  font-size: 0.8rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  transition: all 0.2s ease;
+  font-weight: 500;
+}
+
+.play-audio-button:hover {
+  background: rgba(16, 185, 129, 0.2);
+  transform: scale(1.05);
+}
+
+.play-audio-button:active {
+  transform: scale(0.95);
+}
+
 /* Typing Indicator */
 .typing-indicator {
   display: flex;

@@ -11,9 +11,11 @@ function App() {
   const [isTyping, setIsTyping] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
   const [inputMode, setInputMode] = useState('text'); // 'text' or 'voice'
+  const [audioEnabled, setAudioEnabled] = useState(false);
   const [sessionId] = useState(() => Math.random().toString(36).substring(7));
   const messagesEndRef = useRef(null);
   const recognitionRef = useRef(null);
+  const audioContextRef = useRef(null);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -92,8 +94,9 @@ function App() {
 
     socket.on('message_response', (data) => {
       setIsTyping(false);
+      const messageId = Date.now();
       const newMessage = {
-        id: Date.now(),
+        id: messageId,
         user: data.user_message,
         ai: data.ai_response,
         speech: data.speech,
@@ -103,7 +106,7 @@ function App() {
 
       // Auto-play audio if available
       if (data.speech && data.speech.success && data.speech.audio_url) {
-        playAudio(data.speech.audio_url);
+        playAudio(data.speech.audio_url, messageId);
       }
     });
 
@@ -123,13 +126,96 @@ function App() {
     };
   }, []);
 
-  const playAudio = async (audioUrl) => {
+  const enableAudio = async () => {
     try {
-      const audio = new Audio(audioUrl);
-      await audio.play();
+      // Create audio context to enable audio playback
+      if (!audioContextRef.current) {
+        audioContextRef.current = new (window.AudioContext || window.webkitAudioContext)();
+      }
+
+      // Resume audio context if suspended
+      if (audioContextRef.current.state === 'suspended') {
+        await audioContextRef.current.resume();
+      }
+
+      setAudioEnabled(true);
+      console.log('Audio enabled successfully');
     } catch (error) {
-      console.error('Error playing audio:', error);
+      console.error('Error enabling audio:', error);
     }
+  };
+
+  const playAudio = async (audioUrl, messageId) => {
+    try {
+      // Enable audio context first
+      await enableAudio();
+
+      const audio = new Audio(audioUrl);
+      audio.volume = 0.8; // Set volume to 80%
+
+      // Add event listeners
+      audio.onplay = () => {
+        console.log('Audio started playing');
+        // Update message to show audio is playing
+        setMessages(prev => prev.map(msg =>
+          msg.id === messageId ? { ...msg, audioPlaying: true } : msg
+        ));
+      };
+
+      audio.onended = () => {
+        console.log('Audio finished playing');
+        // Update message to show audio finished
+        setMessages(prev => prev.map(msg =>
+          msg.id === messageId ? { ...msg, audioPlaying: false, audioPlayed: true } : msg
+        ));
+      };
+
+      audio.onerror = (error) => {
+        console.error('Audio playback error:', error);
+        // Mark as failed to play
+        setMessages(prev => prev.map(msg =>
+          msg.id === messageId ? { ...msg, audioError: true } : msg
+        ));
+      };
+
+      // Try to play the audio
+      const playPromise = audio.play();
+
+      if (playPromise !== undefined) {
+        playPromise
+          .then(() => {
+            console.log('Audio started playing successfully');
+          })
+          .catch(error => {
+            console.warn('Audio playback blocked:', error);
+            // Mark as blocked - user can click to play manually
+            setMessages(prev => prev.map(msg =>
+              msg.id === messageId ? { ...msg, audioBlocked: true } : msg
+            ));
+          });
+      }
+    } catch (error) {
+      console.error('Error creating audio:', error);
+    }
+  };
+
+  const playAudioManually = (audioUrl, messageId) => {
+    const audio = new Audio(audioUrl);
+    audio.volume = 0.8;
+
+    audio.onplay = () => {
+      setMessages(prev => prev.map(msg =>
+        msg.id === messageId ? { ...msg, audioPlaying: true, audioBlocked: false } : msg
+      ));
+    };
+
+    audio.onended = () => {
+      setMessages(prev => prev.map(msg =>
+        msg.id === messageId ? { ...msg, audioPlaying: false, audioPlayed: true } : msg
+      ));
+    };
+
+    audio.play().catch(console.error);
   };
 
   const sendMessage = async (e) => {
@@ -171,7 +257,12 @@ function App() {
     }
   };
 
-  const toggleVoiceRecording = () => {
+  const toggleVoiceRecording = async () => {
+    // Enable audio on first user interaction
+    if (!audioEnabled) {
+      await enableAudio();
+    }
+
     if (isRecording) {
       stopVoiceRecording();
     } else {
@@ -249,8 +340,36 @@ function App() {
                       <div className="message-time">{formatTime(msg.timestamp)}</div>
                       {msg.speech && msg.speech.success && (
                         <div className="audio-indicator">
-                          <span className="audio-icon">🔊</span>
-                          <span>Audio played</span>
+                          {msg.audioPlaying ? (
+                            <>
+                              <span className="audio-icon">🔊</span>
+                              <span>Playing...</span>
+                            </>
+                          ) : msg.audioPlayed ? (
+                            <>
+                              <span className="audio-icon">✅</span>
+                              <span>Played</span>
+                            </>
+                          ) : msg.audioBlocked ? (
+                            <button
+                              className="play-audio-button"
+                              onClick={() => playAudioManually(msg.speech.audio_url, msg.id)}
+                              title="Click to play audio"
+                            >
+                              <span className="audio-icon">🔊</span>
+                              <span>Click to play</span>
+                            </button>
+                          ) : msg.audioError ? (
+                            <>
+                              <span className="audio-icon">❌</span>
+                              <span>Playback failed</span>
+                            </>
+                          ) : (
+                            <>
+                              <span className="audio-icon">🔊</span>
+                              <span>Audio played</span>
+                            </>
+                          )}
                         </div>
                       )}
                     </div>

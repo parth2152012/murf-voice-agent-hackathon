@@ -169,7 +169,7 @@ class VoiceAgentAPI:
             }
 
             payload = {
-                'voiceId': 'en-US-terrell',
+                'voiceId': 'en-US-samantha',
                 'text': text,
                 'format': 'mp3',
                 'sampleRate': 24000,

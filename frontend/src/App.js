@@ -241,6 +241,11 @@ function App() {
     e.preventDefault();
     if (!inputMessage.trim()) return;
 
+    // Enable audio on user interaction
+    if (!audioEnabled) {
+      await enableAudio();
+    }
+
     const message = inputMessage.trim();
     setInputMessage('');
     setIsTyping(true);

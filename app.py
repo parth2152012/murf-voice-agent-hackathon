@@ -169,7 +169,7 @@ class VoiceAgentAPI:
             }
 
             payload = {
-                'voiceId': 'en-IN-neha',
+                'voiceId': 'en-US-terrell',
                 'text': text,
                 'format': 'mp3',
                 'sampleRate': 24000,
